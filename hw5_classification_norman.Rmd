@@ -1,0 +1,88 @@
+---
+title: "HW5 - Problem 3 - Orange Juice classification"
+author: "misken"
+date: "March 26, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Problem 3 - Predicting orange juice purchases
+
+The dataset is available as part of the ISLR package. You can see the
+documentation for that package or the following link describes the OJ
+dataset - https://rdrr.io/cran/ISLR/man/OJ.html.
+
+**SUGGESTION**: See the material available in Downloads_StatModels2 from the
+session on classification models in R. In particular, the folder on
+logistic regression and the example in the folder intro_class_HR/ will
+be useful.
+
+## Data prep
+
+We'll do a little data prep to set things up so that we are trying to
+predict whether or not the customer purchased Minute Maid (vs Citrus Hill.)
+Just run the following chunks to load the dataset, do some data prep and
+then partition the data into training and test sets.
+
+```{r loaddata}
+ojsales <- (ISLR::OJ)
+```
+
+Clean up the storeid related fields. Drop Store7 field.
+
+```{r factors}
+ojsales$StoreID <- as.factor(ojsales$StoreID)
+
+# Create a new variable to act as the response variable.
+ojsales$MM <- as.factor(ifelse(ojsales$Purchase=="MM",1,0))
+```
+
+Now we'll just take a subset of the columns as there are a few that contain the
+same information. Remember, the new column `MM` is the one we are trying to
+predict.
+
+```{r subset}
+ojsales_subset <- ojsales[, c(19, 3:13, 15:17)]
+```
+
+Just run this chunk to create training and test datasets. This way we'll
+all be working with the same datasets. Notice that the test set is 10% of
+the full dataset.
+
+```{r partition}
+set.seed(167)
+sample_size <- ceiling(0.10 * nrow(ojsales))
+testrecs <- sample(nrow(ojsales_subset),sample_size)
+ojsales_test <- ojsales_subset[testrecs,]
+ojsales_train <- ojsales_subset[-testrecs,]  # Negative in front of vector means "not in"
+rm(ojsales_subset, ojsales) # No sense keeping a copy of the entire dataset around
+```
+
+## Your job
+
+You should build at least two classification models to try to predict MM.
+Our error metric will be overall accuracy.
+
+Obviously, `ojsales_train` is your training dataset. After fitting each
+model, use the `caret::confusionMatrix` function to create a confusion matrix
+for each of the models based on the training data.
+
+You should at least try the following two techniques:
+- logistic regression
+- a simple decision tree
+
+**HACKER EXTRA:** Try additional techniques such as random forest, k-nearest 
+neighbor or others.
+
+Then use the `predict()` function to make classification predictions on the
+test dataset and use `caret::confusionMatrix` to create a confusion matrix
+for each of the models for the predictions. 
+
+Summarize your results. 
+- Which technique performed the best in terms of overall accuracy? 
+- Which technique had the best sensitivity score?
+- How did accuracy differ for the training and test datasets for each model?
+- Is their any evidence of overfitting?
