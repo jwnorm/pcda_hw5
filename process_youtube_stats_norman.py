@@ -6,7 +6,6 @@ Created on 2018-03-20
 """
 
 import re
-import csv
 
 def process_youtube(fn_youtube , fn_out):
     """
@@ -44,7 +43,7 @@ def process_youtube(fn_youtube , fn_out):
     # Snippet from first line:
     # 2kyS6SvSYSE	17.14.11	WE WANT TO TALK ABOUT OUR MARRIAGE	CaseyNeistat
 
-    re_filter = re.compile('\w+\,(\d*\.\d*\.\d*)\,\".*?\"\,\".*?\"\,28\,.*')
+    re_filter = re.compile(r'\w+\,(\d*\.\d*\.\d*)\,\".*?\"\,\".*?\"\,28\,.*')
 
     # Initialize counters
     num_lines_matched = 0
@@ -88,10 +87,11 @@ def process_youtube(fn_youtube , fn_out):
         # There are a few ways to write out a list of strings to a file. Figure
         # out one way to do it and then do it.
 
-        with open(fn_out, 'w') as output:
-            writer = csv.writer(output, lineterminator='\n')
-            for line in outputlines:
-                writer.writerow([line])
+        out = open(fn_out, "w")
+        for line in outputlines:
+            out.write(line)
+            out.write("\n")
+        out.close()
 
     # # Print out the counts dictionary
 
