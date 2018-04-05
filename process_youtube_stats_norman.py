@@ -43,11 +43,12 @@ def process_youtube(fn_youtube , fn_out):
     # Snippet from first line:
     # 2kyS6SvSYSE	17.14.11	WE WANT TO TALK ABOUT OUR MARRIAGE	CaseyNeistat
 
-    re_filter = re.compile(r'\w+\,(\d*\.\d*\.\d*)\,\".*?\"\,\".*?\"\,28\,.*')
+    re_filter = re.compile(r'.*(\d*\.\d*\.\d*)\,\".*?\"\,\".*?\"\,28\,')
 
     # Initialize counters
     num_lines_matched = 0
     num_lines_not_matched = 0
+    num_lines = 0
 
     # Initialize list to store output lines
     outputlines = []
@@ -58,7 +59,7 @@ def process_youtube(fn_youtube , fn_out):
         # Loop over the lines in the file
         for line in f:
             # Let's strip off any end of line characters
-            line = line.rstrip('\n')
+            line = line.rstrip()
 
             # See if regex for filtering matches this line
             mfilter = re.match(re_filter, line)
@@ -68,6 +69,9 @@ def process_youtube(fn_youtube , fn_out):
 
                 # Increment counter of number of lines matched
                 num_lines_matched += 1
+
+                # Increment total number of lines
+                num_lines += 1
 
                 # Get the date from first capture group
                 trending_date = mfilter.group(1)
@@ -81,6 +85,9 @@ def process_youtube(fn_youtube , fn_out):
             else:
                 # Increment number of lines not matched counter
                 num_lines_not_matched += 1
+
+                #Increment total number of lines
+                num_lines += 1
 
 
     # Write the output file
@@ -101,7 +108,8 @@ def process_youtube(fn_youtube , fn_out):
     # All done, print the results
     print("\nNum lines matched --> {}".format(num_lines_matched))
     print("\nNum lines not matched --> {}".format(num_lines_not_matched))
+    print("\nNum lines --> {}".format(num_lines))
 
 
 if __name__ == '__main__':
-    process_youtube('./data/USvideos.csv', 'USvideos_SciTech.csv')
+    process_youtube('./data/USvideos_no_desc.csv', 'USvideos_SciTech.csv')
