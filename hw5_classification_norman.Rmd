@@ -86,3 +86,229 @@ Summarize your results.
 - Which technique had the best sensitivity score?
 - How did accuracy differ for the training and test datasets for each model?
 - Is their any evidence of overfitting?
+
+## Load Packages
+
+```{r load_packages}
+library(e1071)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(randomForest)
+library(ggplot2)
+library(class)
+library(dplyr)
+```
+
+## Logistic Regression
+
+```{r log_model}
+oj_log <- glm(MM ~ PriceDiff + LoyalCH + PctDiscMM, data=ojsales_train, family=binomial(link="logit"))
+summary(oj_log)
+```
+
+>From a process of trial and error, it appears most of these variables do not add to the accuracy of the model. That is why I have only chosen three that seem relatively significant.
+
+```{r log_fit_confusion_matrix}
+log_fit <- (oj_log$fit > 0.5) * 1
+caret::confusionMatrix(oj_log$y, log_fit, positive="1")
+```
+
+>The fit accuracy for the model is 0.8287.
+
+```{r log_predict}
+predict_log <- predict(oj_log, newdata=ojsales_test, type="response")
+log_predict <- (predict_log > 0.5) * 1
+
+caret::confusionMatrix(ojsales_test$MM, log_predict, positive ="1")
+```
+
+>The predictive accuracy for the model is 0.8785. This is higher than accuracy for the train. Hmm, normally accuracy for test is supposed to be lower than train. This may have to do with the fact that we are training on much more data than we are tetsing on.
+
+## Simple Decision Tree
+
+>For the simple decision tree, I kept the same three variables in the model to see how it compares to logistic regression. I also do not want run into the problem of overfitting.
+
+```{r tree_model}
+oj_tree <- rpart(MM ~ PriceDiff + LoyalCH + PctDiscMM, data=ojsales_train, method="class")
+oj_tree
+```
+
+```{r tree_plot}
+rpart.plot(oj_tree)
+```
+
+>Some the the leaf nodes are "pure", while others are not. The one on the far left is 52%; that's a coin flip and not something you want to see in a good predictive model.
+
+```{r tree_fit_confusion_matrix}
+caret::confusionMatrix(predict(oj_tree, type="class"), 
+                       ojsales_train$MM, positive = "1")
+```
+
+>The fit accuracy for this model is 0.8307.
+
+```{r tree_predict}
+predict_tree <- predict(oj_tree, ojsales_test, type="class")
+```
+
+```{r tree_predict_confusion_matrix}
+caret::confusionMatrix(predict_tree, ojsales_test$MM, positive = "1")
+```
+
+>The predictive accuracy for this model is 0.8692. Again, this is higher for test than train.
+
+## **HACKER EXTRA: Bagging**
+
+>Since this model only splits on some variables, let's just use all of the variables. Since this is bagging, 'mtry' is set to 14, which is all of the variables.
+
+```{r bag_model}
+oj_bag <- randomForest(MM ~ StoreID + PriceCH + PriceMM + 
+                        DiscCH + DiscMM + SpecialCH + 
+                        SpecialMM + LoyalCH + SalePriceMM +
+                        SalePriceCH + PriceDiff + PctDiscMM +
+                        PctDiscCH + ListPriceDiff,
+                      data=ojsales_train,
+                      mtry=14,
+                      importance=TRUE,
+                      na.action = na.omit)
+oj_bag
+```
+
+```{r bag_fit_accuracy}
+acc_bag <- (470 + 281) / (470 + 101 + 111 + 281)
+sprintf("Fit accuracy = %.4f" , acc_bag)
+```
+
+>Fit accuracy for this model is lower than the previous ones. It could have to do with using all of the variables instead of only the significant ones. Let's check which ones are important, or significant, according to this model.
+
+```{r bag_importance}
+# Create dataframe based on importance and order by MeanDecreaseGini
+df_imp <- arrange(as.data.frame(oj_bag$importance),
+                  MeanDecreaseGini)
+# Add variable column
+df_imp$variable <- as.factor(names(oj_bag$importance[,1]))
+
+# Reorder the levels of the variable factor by MeanDecreaseGini
+df_imp <- within(df_imp, variable <- reorder(variable, MeanDecreaseGini))
+
+#Plot it
+ggplot(data=df_imp) + geom_bar(aes(x=variable, y=MeanDecreaseGini), 
+                               stat = "identity") + coord_flip()
+```
+
+>Wow, ListPriceDiff appears to be, by far, the most highly significant variable. I used three of the top four important variables with logistic regression and simple decision tree. That would explain why my earlier models performed so well.
+
+```{r bag_predict_confusion_matrix}
+predict_bag <- predict(oj_bag, ojsales_test, type="class")
+caret::confusionMatrix(predict_bag, ojsales_test$MM, positive = "1")
+```
+
+>The predictive accuracy of this model is 0.8131, which is still better than the train, but not close to either my logistic or decision tree models.
+
+## **HACKER EXTRA: Random Forest**
+
+>Since only a few of the variables seem to be important, I am only setting the 'mtry' paramter to 3. This will likely weed out the insignificant variables.
+
+```{r rf_model}
+oj_rf <- randomForest(MM ~ StoreID + PriceCH + PriceMM + 
+                        DiscCH + DiscMM + SpecialCH + 
+                        SpecialMM + LoyalCH + SalePriceMM +
+                        SalePriceCH + PriceDiff + PctDiscMM +
+                        PctDiscCH + ListPriceDiff,
+                      data=ojsales_train,
+                      mtry=3,
+                      importance=TRUE,
+                      na.action = na.omit)
+oj_rf
+```
+
+```{r rf_fit_accuracy}
+acc_rf <- (491 + 286) / (491 + 96 + 90 + 286)
+sprintf("Fit accuracy = %.4f" , acc_rf)
+```
+
+```{r rf_predict_confusion_matrix}
+predict_rf <- predict(oj_rf, ojsales_test, type="class")
+caret::confusionMatrix(predict_rf, ojsales_test$MM, positive = "1")
+```
+
+>Again, this predictive accuracy of this model improves upon the fit accuracy, but it still doesn't touch my earlier models. This could be a case of overfitting.
+
+## **HACKER EXTRA: KNN**
+
+>Since the classification for "MM" is either "0" or "1", it would make sense that k=2, right?
+
+```{r knn_model1}
+set.seed(447)
+#Buid model
+oj_knn1 <- knn(ojsales_train[,2:15], ojsales_test[,2:15], ojsales_train$MM, k=2, prob = TRUE)
+
+#Show confusion matrix
+cm_knn1 <- caret::confusionMatrix(ojsales_test$MM, oj_knn1, positive = "1")
+cm_knn1
+```
+
+>Woah, the predictive accuracy of this model is the worst yet, 0.7664. Let's play around with k. This time, let k=5.
+
+```{r knn_model2}
+set.seed(447)
+#Buid model
+oj_knn2 <- knn(ojsales_train[,2:15], ojsales_test[,2:15], ojsales_train$MM, k=5, prob = TRUE)
+
+#Show confusion matrix
+cm_knn2 <- caret::confusionMatrix(ojsales_test$MM, oj_knn2, positive = "1")
+cm_knn2
+```
+
+>Okay it went up. Intuitively, k=5 doesn't make much sense because this is a binary classification problem. Let's keep increasing k then.
+
+```{r knn_accuracy}
+set.seed(447)
+#Vary levels of k
+oj_knn3 <- knn(ojsales_train[,2:15], ojsales_test[,2:15], ojsales_train$MM, k=10, prob = TRUE)
+oj_knn4 <- knn(ojsales_train[,2:15], ojsales_test[,2:15], ojsales_train$MM, k=15, prob = TRUE)
+oj_knn5 <- knn(ojsales_train[,2:15], ojsales_test[,2:15], ojsales_train$MM, k=20, prob = TRUE)
+oj_knn6 <- knn(ojsales_train[,2:15], ojsales_test[,2:15], ojsales_train$MM, k=25, prob = TRUE)
+
+#Create confusion matrices
+cm_knn3 <- caret::confusionMatrix(ojsales_test$MM, oj_knn3, positive = "1")
+cm_knn4 <- caret::confusionMatrix(ojsales_test$MM, oj_knn4, positive = "1")
+cm_knn5 <- caret::confusionMatrix(ojsales_test$MM, oj_knn5, positive = "1")
+cm_knn6 <- caret::confusionMatrix(ojsales_test$MM, oj_knn6, positive = "1")
+
+#Print output
+sprintf("oj_knn1 (k=2): Accuracy = %.4f" ,cm_knn1$overall['Accuracy'])
+sprintf("oj_knn2 (k=5): Accuracy = %.4f" ,cm_knn2$overall['Accuracy'])
+sprintf("oj_knn3 (k=10): Accuracy = %.4f" ,cm_knn3$overall['Accuracy'])
+sprintf("oj_knn4 (k=15): Accuracy = %.4f" ,cm_knn4$overall['Accuracy'])
+sprintf("oj_knn5 (k=20): Accuracy = %.4f" ,cm_knn5$overall['Accuracy'])
+sprintf("oj_knn6 (k=25): Accuracy = %.4f" ,cm_knn6$overall['Accuracy'])
+```
+
+>It appears that the optimal k is around 15, where the predictive accuracy is 0.8692. This makes it my second highest performing model.
+
+## Summary
+
+>Below is a summary of key findings from working with the various models.
+
+### Best Model in Terms of Accuracy
+
+>The model that has the best predictive accuracy is logistic regression, oj_log. I kept it simple with only 3 variables and no interacting terms. I chose "PriceDiff", "LoyalCH", and "PctDiscMM" through a process of trial and error. From the bagging model, it was found out that those three variables are in the top four in terms of importance. The predictive accuracy for the logistic regression model is 0.8785. Here is the model and confusion matrix below for your reference.
+
+```{r best_accuracy}
+oj_log
+caret::confusionMatrix(ojsales_test$MM, log_predict, positive ="1")
+```
+
+### Technique with Best Sensitivity Score
+
+>No surprise, logistic regression also resulted in the best sensitivity score, 0.8235. Sensitivity is the fraction of positives predicted as positive. This is just an input in accuracy, which oj_log performed the best in.
+
+### Test vs. Train Accuracy
+
+>For all of the models, the test accuracy was higher than the train. In some cases, the two numbers were very close, in others they were quite different. Generally, this could be considered underfitting; however, this even happened on the models were I used all of the variables.
+
+### Overfitting
+
+>Overfitting would result if the model fit the training data exceptionally well but then performed terribly when it came to predicting new data. Overfitting would be very obvious if there was a training accuracy near 1 and the test accuracy was significantly lower than that. Although I did have some high train accuracies, none of them performed worse when it came to test accuracy. If anything, these models are underfit. I may have left some variables on the table that could have added to the predictablity of the models.
